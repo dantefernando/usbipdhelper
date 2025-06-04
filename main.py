@@ -4,19 +4,29 @@
 # TODO 
 # - interactive support with arrow keys or vim keybinds
 # - add exception for zero usb devices connected
+# - add reconnect feature to device that is already connected
 
 import pyuac  # for admin rights
 import os # clear screen
 from subprocess import check_output  # enter commands in powershell
+from time import sleep
 
 
 # WIP
-def disconnect():
-    pass
+def disconnect(device):
+    os.system(f'powershell.exe usbipd unbind -b {device[0]}')
+    sleep(1)
+
 
 
 # WIP
 def connect():
+
+    # TODO connecting device:
+    # - ssh into virtual machine
+    # - get correct ethernet adapter ipv4 address of host machine get it from 'who' command
+    # - enter that into ssh command 
+
     pass
 
 
@@ -30,7 +40,7 @@ def displayDevice(index):
     print(f"\n{raw[1]}\n{raw[index+2]}\n")
 
 
-def manageDevice(device, index):
+def manageDevice(index):
     """
     Let user interactively Connect/Disconnect Device from usbipd
     """
@@ -51,6 +61,8 @@ def manageDevice(device, index):
 
     while True:
 
+        device = getDevices()[index]  # return devices data as 2D array 
+
         displayDevice(index)
 
         # send a status to stdout
@@ -61,7 +73,7 @@ def manageDevice(device, index):
             if inp.lower() == "c" or inp.lower() == "connect":  # User wants to connect
                 clear()
                 print("Connecting...")
-                connect()
+                connect(device)
             elif inp.lower() == "b" or inp.lower() == "back":  # User wants to go back to the dev menu
                 clear()
                 break
@@ -71,15 +83,20 @@ def manageDevice(device, index):
 
         else:  # device is connected to VM
             print("Device is currently CONNECTED to the VM")
-            inp = input("(D)isconnect or Go (B)ack: ")
+            inp = input("(D)isconnect, (R)econnect or Go (B)ack: ")
 
             if inp.lower() == "d" or inp.lower() == "disconnect":  # user wants to disconnect
                 clear()
                 print("Disconnecting...")
-                disconnect()
+                disconnect(device)
             elif inp.lower() == "b" or inp.lower() == "back":  # user wants to go back
                 clear()
                 break
+            # elif inp.lower() == "r" or inp.lower() == "reconnect":  # user wants to reconnect
+            #     clear()
+            #     disconnect(device)
+            #     wait 5
+            #     connect(device)
             else:  # user entered invalid input
                 clear()
                 print("Invalid input")
@@ -112,7 +129,7 @@ def chooseDevice():
 
             if 1 <= inp <= len(devices):  # int in range
                 clear()
-                manageDevice(devices[inp-1], inp-1)  # disconnect/connect device
+                manageDevice(inp-1)  # disconnect/connect device
             else:  # int out of range
                 clear()
                 print(f"\nEnter a valid index between 1 and {len(devices)}...\n")
