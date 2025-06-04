@@ -2,10 +2,21 @@
 
 import pyuac  # for admin rights
 from subprocess import check_output  # enter commands in powershell
+from argparse import ArgumentParser # CLI help
 
 
-# Get the devices and store it in a list
+HELP_NOTICE = """CLI tool that helps automate connect and disconnect process for USB devices
+                using usbipd on windows.  You'll no longer have to keep reaching over your
+                desk to physically unplug and replug usb devices when messing around with
+                virtual machines that require you to do so."""
+
+
 def getDevices():
+    """
+    Get device information from 'usbipd list' command, format it and return it
+    in an array for parsing
+    """
+
     raw = check_output("powershell.exe usbipd list", shell=True).decode().splitlines()
     raw.pop(0)
     raw.pop(0)
@@ -16,7 +27,9 @@ def getDevices():
     for i in range(0, len(raw)):
         line = raw[i].split()
         if len(line) != 0: # if line is not a newline
-            if line[0] != "Persisted:" and line[0] != "GUID":
+            if line[0] == "Persisted:":  # don't add persisted devices
+                break
+            else:
                 devicesRaw.append(line)
 
     # Create clean device list to use later for automation and stdout
@@ -36,20 +49,38 @@ def getDevices():
 
         devicesClean.append(device)
 
-    for line in devicesClean:
-        print(line)
+    return devicesClean  # return array of cleanly formatted devices ready for automation
 
 
-# Ask the user to run the script with admin rights
 def runAdmin():
+    """
+    Prompt the user to run the script with Admin Rights.
+    Required for usbipd
+    """
+
     if not pyuac.isUserAdmin():
         pyuac.runAsAdmin()
 
 
 def main():
-    runAdmin()
-    getDevices()
+    """
+    Main, calls all methods
+    """
+
+    runAdmin()  # run the script with admin rights
+
+    # if firstTime():  # user's first time running script
+    #     createSettings()   # create persistent settings files
+
+    devices = getDevices()
+
+    # displayDevices(devices)  # send formatted devices to stdout for user to choose from
+
+    for device in devices:
+        print(device)
+
 
 
 if __name__ == "__main__":
     main()
+
