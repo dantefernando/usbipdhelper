@@ -1,5 +1,4 @@
 # Allow user to interactively connect and disconnect usb devices using usbipd
-# Designed to run on Windows 10/11
 # Written by Dante Fernando
 
 # TODO 
@@ -11,6 +10,11 @@ import os # clear screen
 from subprocess import check_output  # enter commands in powershell
 
 
+def manageDevice(device):
+    """
+    Connect/Disconnect Device from usbipd
+    """
+    pass
 
 
 def clear():
@@ -20,7 +24,7 @@ def clear():
     os.system('cls')
 
 
-def chooseDevice(devices):
+def chooseDevice():
     """
     Let user connect/disconnect devices after displaying a list
     devices to choose from
@@ -28,22 +32,31 @@ def chooseDevice(devices):
 
     while True:
 
+        devices = getDevices()  # return devices data as 2D array 
+
         displayDevices()  # send formatted devices to stdout for user to choose from
 
-        print("Select a device using the index on under \"INDEX\"")
+        print("Select a device using the index under \"INDEX\"")
 
+        inp = input(f"Index of Device to Connect/Disconnect (1-{len(devices)}) or (R)efresh devices: ")
         try:
-            inp = int(input("Device to Connect/Disconnect: "))
-            if 1 <= inp <= len(devices):  # in range
+            inp = int(inp)
+
+            if 1 <= inp <= len(devices):  # int in range
                 clear()
+                print("correct")
                 manageDevice(devices[inp-1])  # disconnect/connect device
-            else:
+            else:  # int out of range
                 clear()
                 print(f"\nEnter a valid index between 1 and {len(devices)}...\n")
-        except ValueError:
-            clear()
-            print("\nIndex must be number, Try again...\n")
 
+        except ValueError:  # user entered a string
+            if inp.lower() == "r" or inp.lower() == "refresh":  # str in range
+                clear()
+                print("Refreshed and Updating Devices...")
+            else:  # str out of range
+                clear()
+                print(f"\nEnter a valid index between 1 and {len(devices)}...\n")
 
 
 def displayDevices():
@@ -134,9 +147,7 @@ def main():
 
     runAdmin()  # run the script with admin rights
 
-    devices = getDevices()  # return devices data as 2D array 
-
-    chooseDevice(devices)
+    chooseDevice()
 
 
 if __name__ == "__main__":
