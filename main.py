@@ -1,12 +1,54 @@
 # Allow user to interactively connect and disconnect usb devices using usbipd
+# Designed to run on Windows 10/11
+# Written by Dante Fernando
+
+# TODO 
+# - interactive support with arrow keys or vim keybinds
+# - add exception for zero usb devices connected
 
 import pyuac  # for admin rights
+import os # clear screen
 from subprocess import check_output  # enter commands in powershell
 
 
-def displayDevices(devices):
+
+
+def clear():
     """
-    Display devices formatted cleanly for user to choose from
+    Clear the console
+    """
+    os.system('cls')
+
+
+def chooseDevice(devices):
+    """
+    Let user connect/disconnect devices after displaying a list
+    devices to choose from
+    """
+
+    while True:
+
+        displayDevices()  # send formatted devices to stdout for user to choose from
+
+        print("Select a device using the index on under \"INDEX\"")
+
+        try:
+            inp = int(input("Device to Connect/Disconnect: "))
+            if 1 <= inp <= len(devices):  # in range
+                clear()
+                manageDevice(devices[inp-1])  # disconnect/connect device
+            else:
+                clear()
+                print(f"\nEnter a valid index between 1 and {len(devices)}...\n")
+        except ValueError:
+            clear()
+            print("\nIndex must be number, Try again...\n")
+
+
+
+def displayDevices():
+    """
+    Display devices cleanly with indexes for user to choose from
     """
     raw = getRawDevices()  # get raw output of devices to display to user
 
@@ -20,8 +62,8 @@ def displayDevices(devices):
             if index == 0:
                 print(f"Connected Devices:\n") 
             elif index == 1:
-                print(f"SELECT \t {line}")
-            else:
+                print(f"INDEX \t {line}")
+            else:  # Print with index beside device
                 print(f"{index-1}) \t {line}")
         else:  # Disconnected device
             print(line)
@@ -78,7 +120,7 @@ def getDevices():
 def runAdmin():
     """
     Prompt the user to run the script with Admin Rights.
-    Required for usbipd
+    Required for usbipd-win
     """
 
     if not pyuac.isUserAdmin():
@@ -92,9 +134,9 @@ def main():
 
     runAdmin()  # run the script with admin rights
 
-    devices = getDevices()
+    devices = getDevices()  # return devices data as 2D array 
 
-    displayDevices(devices)  # send formatted devices to stdout for user to choose from
+    chooseDevice(devices)
 
 
 if __name__ == "__main__":
