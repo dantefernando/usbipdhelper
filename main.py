@@ -2,13 +2,36 @@
 
 import pyuac  # for admin rights
 from subprocess import check_output  # enter commands in powershell
-from argparse import ArgumentParser # CLI help
 
 
-HELP_NOTICE = """CLI tool that helps automate connect and disconnect process for USB devices
-                using usbipd on windows.  You'll no longer have to keep reaching over your
-                desk to physically unplug and replug usb devices when messing around with
-                virtual machines that require you to do so."""
+def displayDevices(devices):
+    """
+    Display devices formatted cleanly for user to choose from
+    """
+    raw = getRawDevices()  # get raw output of devices to display to user
+
+    endOfDevices = False  # End of connected devices
+    for index, line in enumerate(raw):  # loop thru all lines
+
+        if len(line) == 0:  # Reached end of devices
+            endOfDevices = True
+
+        if not endOfDevices:  # Device is connected
+            if index == 0:
+                print(f"Connected Devices:\n") 
+            elif index == 1:
+                print(f"SELECT \t {line}")
+            else:
+                print(f"{index-1}) \t {line}")
+        else:  # Disconnected device
+            print(line)
+
+
+def getRawDevices():
+    """
+    Return raw output of usbipd list command
+    """
+    return check_output("powershell.exe usbipd list", shell=True).decode().splitlines()
 
 
 def getDevices():
@@ -17,7 +40,7 @@ def getDevices():
     in an array for parsing
     """
 
-    raw = check_output("powershell.exe usbipd list", shell=True).decode().splitlines()
+    raw = getRawDevices()
     raw.pop(0)
     raw.pop(0)
 
@@ -29,7 +52,7 @@ def getDevices():
         if len(line) != 0: # if line is not a newline
             if line[0] == "Persisted:":  # don't add persisted devices
                 break
-            else:
+            else:  # device is currently connected 
                 devicesRaw.append(line)
 
     # Create clean device list to use later for automation and stdout
@@ -69,16 +92,9 @@ def main():
 
     runAdmin()  # run the script with admin rights
 
-    # if firstTime():  # user's first time running script
-    #     createSettings()   # create persistent settings files
-
     devices = getDevices()
 
-    # displayDevices(devices)  # send formatted devices to stdout for user to choose from
-
-    for device in devices:
-        print(device)
-
+    displayDevices(devices)  # send formatted devices to stdout for user to choose from
 
 
 if __name__ == "__main__":
