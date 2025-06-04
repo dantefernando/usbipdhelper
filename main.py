@@ -10,11 +10,79 @@ import os # clear screen
 from subprocess import check_output  # enter commands in powershell
 
 
-def manageDevice(device):
-    """
-    Connect/Disconnect Device from usbipd
-    """
+# WIP
+def disconnect():
     pass
+
+
+# WIP
+def connect():
+    pass
+
+
+def displayDevice(index):
+    """
+    Display device to user in a readable format 
+    with BUSID, VID:PID, NAME AND STATE
+    """
+
+    raw = getRawDevices()
+    print(f"\n{raw[1]}\n{raw[index+2]}\n")
+
+
+def manageDevice(device, index):
+    """
+    Let user interactively Connect/Disconnect Device from usbipd
+    """
+
+    # TODO
+    # - display device, show all info
+    # - tell user if the device is currently connected or disconnected
+    # - ask to (C)onnect or (D)isconnect device from session
+    # add cases for 'Not shared', 'Shared' and Attached
+
+    # TODO connecting device:
+    # - ssh into virtual machine
+    # - get correct ethernet adapter ipv4 address of host machine get it from 'who' command
+    # - enter that into ssh command 
+
+    # TODO disconnecting device:
+    # unbind from powershell
+
+    while True:
+
+        displayDevice(index)
+
+        # send a status to stdout
+        if device[3] == "Not shared" or device[3] == "Shared":  # device is disconnected to VM
+            print("Device is currently DISCONNECTED from the VM")
+            inp = input("(C)onnect or Go (B)ack: ")
+
+            if inp.lower() == "c" or inp.lower() == "connect":  # User wants to connect
+                clear()
+                print("Connecting...")
+                connect()
+            elif inp.lower() == "b" or inp.lower() == "back":  # User wants to go back to the dev menu
+                clear()
+                break
+            else:  # invalid input
+                clear()
+                print("Invalid input")
+
+        else:  # device is connected to VM
+            print("Device is currently CONNECTED to the VM")
+            inp = input("(D)isconnect or Go (B)ack: ")
+
+            if inp.lower() == "d" or inp.lower() == "disconnect":  # user wants to disconnect
+                clear()
+                print("Disconnecting...")
+                disconnect()
+            elif inp.lower() == "b" or inp.lower() == "back":  # user wants to go back
+                clear()
+                break
+            else:  # user entered invalid input
+                clear()
+                print("Invalid input")
 
 
 def clear():
@@ -44,8 +112,7 @@ def chooseDevice():
 
             if 1 <= inp <= len(devices):  # int in range
                 clear()
-                print("correct")
-                manageDevice(devices[inp-1])  # disconnect/connect device
+                manageDevice(devices[inp-1], inp-1)  # disconnect/connect device
             else:  # int out of range
                 clear()
                 print(f"\nEnter a valid index between 1 and {len(devices)}...\n")
@@ -147,7 +214,7 @@ def main():
 
     runAdmin()  # run the script with admin rights
 
-    chooseDevice()
+    chooseDevice()  # user chooses device to connect/disconnect
 
 
 if __name__ == "__main__":
