@@ -5,6 +5,7 @@
 # - getRawIP() should automatically figure out which ethernet adapter to look for
 # - connect() should automatically figure out the VM's ip for SSH
 # - connect() should ask for password from user and store it somewhere
+# - Check if username, password, adapters and virtual machine IP are all correct
 # - Add Quit option to devices menu
 
 # Not urgent TODO
@@ -17,10 +18,12 @@ import os # clear screen
 from subprocess import check_output  # enter commands in powershell
 from time import sleep
 
-# Change these:
-USERNAME = ""
-PASSWORD = ""
-ADAPTER = "vEthernet (Default Switch)"
+# TODO automate all these 
+# CHANGE THESE FOUR VARS BELOW FOR YOUR SYSTEM
+USERNAME = "nexus"  # username for ssh
+PASSWORD = "1234"  # password for ssh
+ADAPTER = "vEthernet (Default Switch)"  # Virtual Adapter Name, check ipconfig e.g. "vEthernet (Default Switch)
+VIRTUAL_MACHINE_IP = "172.28.53.30"  # VM ip, find ip in virtual machine using `ip a` command e.g. 172.28.53.30
 
 
 def disconnect(device):
@@ -69,7 +72,6 @@ def connect(device):
     Connect the USB device with usbipd-win on host and usbip on VM
     """
 
-    vmIP = "172.28.53.30"  # VM ip #TODO automate this IP
     hostIP = getHostIP()  # host IP
     busID = device[0]
 
@@ -79,7 +81,7 @@ def connect(device):
     # SSH into VM
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # Allows login if not in known_hosts
-    ssh.connect(vmIP, username=USERNAME, password=PASSWORD)  # TODO store password somewhere else
+    ssh.connect(VIRTUAL_MACHINE_IP, username=USERNAME, password=PASSWORD)  # TODO store password somewhere else
 
     stdin, stdout, stderr = ssh.exec_command("echo 1234 | sudo -S modprobe vhci-hcd ")  # kernel module
 
@@ -270,14 +272,48 @@ def runAdmin():
         pyuac.runAsAdmin()
 
 
+def hasLogin():  # TODO eventually automate this and store as non volatile files.
+    """
+    Check if the user has entered their username, password, adapter and VM ip
+    """
+
+    if USERNAME == "" or PASSWORD == "" or ADAPTER == "" or VIRTUAL_MACHINE_IP == "":  # vars are empty
+        return False  # fail test
+    else:  # all vars are filled out
+        return True  # pass test
+
+
 def main():
     """
     Main, calls all methods
     """
 
-    runAdmin()  # run the script with admin rights
+    if hasLogin() == False:  # user hasn't filled out constants at top of file
 
-    chooseDevice()  # user chooses device to connect/disconnect
+        print(
+              "\nError: Variables require changing...\n\n"
+              "\n################################################################\n\n"
+              "Edit this python script file and edit the following variables:\n\n" # temporary
+              "USERNAME - this is the username used to ssh into the virtual machine \n\n"
+
+              "PASSWORD - this is the password used to ssh into the virtual machine\n\n"
+
+              "ADAPTER - open cmd, enter \'ipconfig\' and enter the name of the Virtual Adapter\n"
+              "after the \"Ethernet adapter\" part. E.g. \"vEthernet (Default Switch)\"\n\n"
+
+              "VIRTUAL_MACHINE_IP - this is the IP of the virtual machine used to ssh into, open the\n"
+              "virtual machine, open terminal, type \"ip a\" into the terminal, and enter the ipv4 of\n"
+              "the virtual local machine ip under eth0\n"
+              "\n################################################################\n")
+
+        print("After you have edited these variables, restart the script and try again...")
+        print("Exiting...\n")
+
+    else:
+
+        runAdmin()  # run the script with admin rights
+
+        chooseDevice()  # user chooses device to connect/disconnect
 
 
 if __name__ == "__main__":
