@@ -1,33 +1,94 @@
 # Allow user to interactively connect and disconnect usb devices using usbipd
 # Written by Dante Fernando
 
-# TODO 
+# Urgent TODO 
+# - getRawIP() should automatically figure out which ethernet adapter to look for
+# - connect() should automatically figure out the VM's ip for SSH
+# - connect() should ask for password from user and store it somewhere
+# - Add Quit option to devices menu
+
+# Not urgent TODO
 # - interactive support with arrow keys or vim keybinds
 # - add exception for zero usb devices connected
-# - add reconnect feature to device that is already connected
 
-import pyuac  # for admin rights
+import paramiko  # for ssh # pip install
+import pyuac  # for admin rights # pip install
 import os # clear screen
 from subprocess import check_output  # enter commands in powershell
 from time import sleep
 
+# Change these:
+USERNAME = ""
+PASSWORD = ""
+ADAPTER = "vEthernet (Default Switch)"
 
-# WIP
+
 def disconnect(device):
-    os.system(f'powershell.exe usbipd unbind -b {device[0]}')
-    sleep(1)
+    """
+    Disconnect the USB device from VM
+    """
+
+    busID = device[0]
+
+    os.system(f'powershell.exe usbipd unbind -b {busID}')  # unbind device from host
+    print(f"Device: {device[2]} disconnected!")
+    sleep(1.5)
 
 
+def getRawIP():
+    """
+    Return raw info output of netsh command
+    """
 
-# WIP
-def connect():
+    # Get network adapter raw output from netsh
+    # TODO make it automatically look for this adapter
+    return check_output(f"netsh interface ip show addresses \"{ADAPTER}\"", shell=True).decode().splitlines()
 
-    # TODO connecting device:
-    # - ssh into virtual machine
-    # - get correct ethernet adapter ipv4 address of host machine get it from 'who' command
-    # - enter that into ssh command 
 
-    pass
+def getHostIP():
+    """
+    Return host IP
+    """
+
+    raw = getRawIP()  # get the raw output from netsh
+
+    cleanRaw = []  # array with no newlines
+    for index, line in enumerate(raw):  # loop thru each line and split it into strings in array
+        if not len(line) == 0:  # line is not empty
+            cleanRaw.append(line.split())
+
+    for line in cleanRaw:  # loop thru lines to find the host IP
+        if line[0] == "IP" and line[1] == "Address:":  # Found host ip address
+            hostip = line[2]
+
+    return hostip
+
+
+def connect(device):
+    """
+    Connect the USB device with usbipd-win on host and usbip on VM
+    """
+
+    vmIP = "172.28.53.30"  # VM ip #TODO automate this IP
+    hostIP = getHostIP()  # host IP
+    busID = device[0]
+
+    os.system(f'powershell.exe usbipd bind -b {device[0]}')  # Bind device
+    sleep(0.5)
+
+    # SSH into VM
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # Allows login if not in known_hosts
+    ssh.connect(vmIP, username=USERNAME, password=PASSWORD)  # TODO store password somewhere else
+
+    stdin, stdout, stderr = ssh.exec_command("echo 1234 | sudo -S modprobe vhci-hcd ")  # kernel module
+
+    # connect the USB over IP
+    stdin, stdout, stderr = ssh.exec_command(f"echo 1234 | sudo -S usbip attach --remote={hostIP} --busid={busID}")
+
+    clear()
+    print(f"Device: {device[2]} Attached!")
+    sleep(2)
 
 
 def displayDevice(index):
@@ -44,20 +105,6 @@ def manageDevice(index):
     """
     Let user interactively Connect/Disconnect Device from usbipd
     """
-
-    # TODO
-    # - display device, show all info
-    # - tell user if the device is currently connected or disconnected
-    # - ask to (C)onnect or (D)isconnect device from session
-    # add cases for 'Not shared', 'Shared' and Attached
-
-    # TODO connecting device:
-    # - ssh into virtual machine
-    # - get correct ethernet adapter ipv4 address of host machine get it from 'who' command
-    # - enter that into ssh command 
-
-    # TODO disconnecting device:
-    # unbind from powershell
 
     while True:
 
@@ -92,11 +139,10 @@ def manageDevice(index):
             elif inp.lower() == "b" or inp.lower() == "back":  # user wants to go back
                 clear()
                 break
-            # elif inp.lower() == "r" or inp.lower() == "reconnect":  # user wants to reconnect
-            #     clear()
-            #     disconnect(device)
-            #     wait 5
-            #     connect(device)
+            elif inp.lower() == "r" or inp.lower() == "reconnect":  # user wants to reconnect
+                clear()
+                disconnect(device)
+                connect(device)
             else:  # user entered invalid input
                 clear()
                 print("Invalid input")
@@ -157,7 +203,7 @@ def displayDevices():
 
         if not endOfDevices:  # Device is connected
             if index == 0:
-                print(f"Connected Devices:\n") 
+                print(f"Connected Devices:\n")
             elif index == 1:
                 print(f"INDEX \t {line}")
             else:  # Print with index beside device
