@@ -41,3 +41,6 @@ python main.py
 ```
 
 
+### Author
+
+Written by Dante Fernando 2025
