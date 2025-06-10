@@ -2,6 +2,7 @@
 Connect and Disconnect USB Devices from your Hyper-V Virtual Machine without typing a million commands.
 
 ## Requirements on Host Machine
+- Windows 10/11+ with Powershell Admin Privileges
 - Python 3.13+ (Or Latest)
 - pyuac
 - pypiwin32
