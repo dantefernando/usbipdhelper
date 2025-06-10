@@ -2,8 +2,6 @@
 # Written by Dante Fernando
 
 # Urgent TODO 
-# - getRawIP() should automatically figure out which ethernet adapter to look for
-# - connect() should automatically figure out the VM's ip for SSH
 # - connect() should ask for password from user and store it somewhere
 # - Check if username, password, adapters and virtual machine IP are all correct
 # - Add Quit option to devices menu
@@ -17,13 +15,7 @@ import pyuac  # for admin rights # pip install
 import os # clear screen
 from subprocess import check_output  # enter commands in powershell
 from time import sleep
-
-# TODO automate all these 
-# CHANGE THESE FOUR VARS BELOW FOR YOUR SYSTEM
-USERNAME = "nexus"  # username for ssh
-PASSWORD = "1234"  # password for ssh
-ADAPTER = "vEthernet (Default Switch)"  # Virtual Adapter Name, check ipconfig e.g. "vEthernet (Default Switch)
-VIRTUAL_MACHINE_IP = "172.28.53.30"  # VM ip, find ip in virtual machine using `ip a` command e.g. 172.28.53.30
+from ssh_credentials import USERNAME, PASSWORD  # TODO ask user for username and password, store it in default.txt
 
 
 def disconnect(device):
@@ -38,22 +30,21 @@ def disconnect(device):
     sleep(1.5)
 
 
-def getRawIP():
+def getRawIP(virtualMachineAdapter):
     """
     Return raw info output of netsh command
     """
 
     # Get network adapter raw output from netsh
-    # TODO make it automatically look for this adapter
-    return check_output(f"netsh interface ip show addresses \"{ADAPTER}\"", shell=True).decode().splitlines()
+    return check_output(f"netsh interface ip show addresses \"vEthernet ({virtualMachineAdapter})\"", shell=True).decode().splitlines()
 
 
-def getHostIP():
+def getHostIP(virtualMachineAdapter):
     """
     Return host IP
     """
 
-    raw = getRawIP()  # get the raw output from netsh
+    raw = getRawIP(virtualMachineAdapter)  # get the raw output from netsh
 
     cleanRaw = []  # array with no newlines
     for index, line in enumerate(raw):  # loop thru each line and split it into strings in array
@@ -72,25 +63,45 @@ def connect(device):
     Connect the USB device with usbipd-win on host and usbip on VM
     """
 
-    hostIP = getHostIP()  # host IP
-    busID = device[0]
+    virtualMachine = getDefaultVM()  # get default vm with all info
+    virtualMachineName = virtualMachine[0]  # get name
+    virtualMachineAdapter = virtualMachine[1]  # get adapter
+    virtualMachineIP = virtualMachine[2]  # get ip
 
-    os.system(f'powershell.exe usbipd bind -b {device[0]}')  # Bind device
-    sleep(0.5)
+    # Check if IP is empty
+    if virtualMachineIP == "":  # IP is empty.
+        print(f"Error: Unable to retrieve Virtual Machine IP for: {virtualMachineName}. Please Start the VM in Hyper-V or double"
+              "\ncheck that the name of the VM is correct.")
 
-    # SSH into VM
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # Allows login if not in known_hosts
-    ssh.connect(VIRTUAL_MACHINE_IP, username=USERNAME, password=PASSWORD)  # TODO store password somewhere else
+        print("Returning to menu...")
 
-    stdin, stdout, stderr = ssh.exec_command("echo 1234 | sudo -S modprobe vhci-hcd ")  # kernel module
+    else:  # IP is not empty. Start the connection process
 
-    # connect the USB over IP
-    stdin, stdout, stderr = ssh.exec_command(f"echo 1234 | sudo -S usbip attach --remote={hostIP} --busid={busID}")
+        hostIP = getHostIP(virtualMachineAdapter)  # host IP
+        busID = device[0]
 
-    clear()
-    print(f"Device: {device[2]} Attached!")
-    sleep(2)
+        print("Binding Device...")
+        os.system(f'powershell.exe usbipd bind -b {device[0]}')  # Bind device
+        sleep(0.5)
+
+        # SSH into VM
+        print("Connecting to Virtual Machine via SSH...")
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # Allows login if not in known_hosts
+        ssh.connect(virtualMachineIP, username=USERNAME, password=PASSWORD)  # TODO store password somewhere else
+
+        # Enable kernel module in VM
+        print("Enabling Virtual USB Kernel Module...")
+        stdin, stdout, stderr = ssh.exec_command("echo 1234 | sudo -S modprobe vhci-hcd ")  # kernel module
+
+        # connect the USB over IP
+        print("Attaching USB with usbip to Virtual Machine...")
+        stdin, stdout, stderr = ssh.exec_command(f"echo 1234 | sudo -S usbip attach --remote={hostIP} --busid={busID}")
+
+        # clear()
+        print("Success.")
+        print(f"Device: {device[2]} Attached!")
+        sleep(2)
 
 
 def displayDevice(index):
@@ -171,6 +182,7 @@ def chooseDevice():
 
         print("Select a device using the index under \"INDEX\"")
 
+        print("Press CTRL-C at any time throughout the program to exit.")
         inp = input(f"Index of Device to Connect/Disconnect (1-{len(devices)}) or (R)efresh devices: ")
         try:
             inp = int(inp)
@@ -268,19 +280,196 @@ def runAdmin():
     Required for usbipd-win
     """
 
-    if not pyuac.isUserAdmin():
+    if not pyuac.isUserAdmin():  # user is not admin
+        print("Prompting user to Run as Administrator...")
         pyuac.runAsAdmin()
 
+    else:  # user is already admin
+        print("Already Adminstator, proceeding.")
 
-def hasLogin():  # TODO eventually automate this and store as non volatile files.
+
+def hasLogin():
     """
     Check if the user has entered their username, password, adapter and VM ip
     """
 
-    if USERNAME == "" or PASSWORD == "" or ADAPTER == "" or VIRTUAL_MACHINE_IP == "":  # vars are empty
+    if USERNAME == "" or PASSWORD == "":  # vars are empty
+
+        print(
+              "\nError: Variables require changing...\n\n"
+              "\n################################################################\n\n"
+              "Edit ssh_credentials.py file and edit the following variables:\n\n" # temporary
+              "USERNAME - this is the username used to ssh into the virtual machine \n\n"
+
+              "PASSWORD - this is the password used to ssh into the virtual machine\n\n"
+
+              "\n################################################################\n")
+
+        print("After you have edited these variables, restart the script and try again...")
+        print("Exiting...\n")
+
         return False  # fail test
+
     else:  # all vars are filled out
         return True  # pass test
+
+
+def getDefaultVM():
+    """
+    Read the default file to retrieve default virtualmachine Hyper-v name, adapter and ip
+    """
+
+    try:
+        with open("default.txt", "r") as file:  # open the file with read permissions
+            name = file.readline()  # get default vm name from file
+
+        # cross reference name with existing VMs 
+
+        virtualMachines = getVMs()  # get existing VMs
+
+        for machine in virtualMachines:  # loop thru all existing virtualMachines 
+            if machine[0] == name:  # name matches default
+                return machine  # return the virtual machine info
+
+    except IOError:  # can't find file/can't open file
+        print("Unable to open default.txt...")
+
+
+def setDefaultVM(virtualMachine):
+    """
+    Store default virtualMachine to ssh into in a file on disk
+    """
+
+    with open("default.txt", "w") as file:  # Create the settings file
+        print(f"Setting \"{virtualMachine[0]}\" as default ssh machine in default.txt...")
+        file.write(f"{virtualMachine[0]}")
+
+
+def getVMs():
+    """
+    Get array of available Hyper-V VMs formatted.
+    """
+
+    print("Retrieving Existing Hyper-V Virtual Machines...")
+
+    virtualMachines = []  # 2D array with VMs. [[VMName, SwitchName, IPAddress],[...,...,...]] etc.
+
+
+    # Get only the VM names from the get-vm command
+    rawNames = check_output("powershell.exe \"get-vm | select -ExpandProperty networkadapters | select vmname | ft -wrap -autosize\"", shell=True).decode().splitlines()
+
+    for line in rawNames[3:]:  # Append lines after the first 3 lines of raw stdout from command
+        if not line == "":  # if line is not empty
+            virtualMachines.append([line.strip()])
+
+
+    # get VM Switchnames
+    rawSwitches = check_output("powershell.exe \"get-vm | select -ExpandProperty networkadapters | select switchname | ft -wrap -autosize\"", shell=True).decode().splitlines()
+
+    for i in range(3, 3+len(virtualMachines)):  # skip first 3 lines but get the number of virtual machines and only append that many lines
+
+        virtualMachines[i-3].append(rawSwitches[i].strip())
+
+
+    # get VM ip addresses
+    rawIPs = check_output("powershell \"get-vm | select -ExpandProperty networkadapters | select ipaddresses | ft -wrap -autosize\"", shell=True).decode().splitlines()
+
+    for i in range(3, 3+len(virtualMachines)):  # skip first 3 lines but append IPs for amount of virtualMachines
+
+        ips = rawIPs[i].strip().strip("{}").split(",")  # get raw string containing ipv4 and ipv6 together and convert to array
+
+        for j in range(0, len(ips)):  # loop thru ips
+            ips[j] = ips[j].strip()  # removes whitespace from each ip address
+
+            if not any(c.isalpha() for c in ips[j]):  # if the IP is IPv4
+                virtualMachines[i-3].append(ips[j])  # append IPv4 to virtualMachines array
+
+    return virtualMachines  # returns all virtual machines in 2D array [[VMName, SwitchName, IPAddress],[...,...,...]] etc.
+
+
+def getRawVMs():
+    """
+    get raw output of `get-vm | select -ExpandProperty networkadapters | select vmname, switchname, ipaddresses | ft
+    -wrap -autosize` command.
+    """
+
+    return check_output("powershell.exe \"get-vm | select -ExpandProperty networkadapters | select vmname, switchname, ipaddresses | ft -wrap -autosize\"", shell=True).decode().splitlines()
+
+
+# TODO add exception for having no VMs set up
+def displayVMs():
+    """
+    Display Hyper-V VMs cleanly with indexes for user to choose from
+    """
+    raw = getRawVMs()  # get raw output of VMs to display to user
+
+    raw.pop(0)  # pop empty line
+
+    print("Your Configured VMs in Hyper-V:\n")
+
+    for index, line in enumerate(raw):  # loop thru all lines in raw output
+
+        if len(line) == 0:  # Reached end of VMs
+            break
+
+        else:  # Check line
+            if index == 0:
+                print(f"INDEX \t {line}")
+            elif index == 1:
+                print(f"----- \t {line}")
+            else:  # Print with index beside device
+                print(f"{index-1}) \t {line}")
+
+
+def confirmVM():
+    """
+    Confirm with the user which Hyper-V VM they want to connect to by default
+    """
+
+    while True:
+
+        virtualMachines = getVMs()  # retrieve all virtual machines set up in hyper-v as an array
+
+        displayVMs()  # Display the VMs to the user
+
+        print("\nWhich VM would you like to connect to from now on? (This will be saved as the Default in default.txt)")
+        print("Select a device using the index under \"INDEX\"")
+
+        inp = input(f"Index of Device to Connect/Disconnect (1-{len(virtualMachines)}) or (R)efresh Virtual Machines: ")
+        try:
+            inp = int(inp)
+
+            if 1 <= inp <= len(virtualMachines):  # int in range
+                setDefaultVM(virtualMachines[inp-1])  # set the default Virtual Machine to the selected VM
+                break
+            else:  # int out of range
+                clear()
+                print(f"\nEnter a valid index between 1 and {len(virtualMachines)}...\n")
+
+        except ValueError:  # user entered a string
+            if inp.lower() == "r" or inp.lower() == "refresh":  # str in range
+                clear()
+                print("Refreshed and Updating Virtual Machines...")
+            else:  # str out of range
+                clear()
+                print(f"\nEnter a valid index between 1 and {len(virtualMachines)}...\n")
+
+
+
+def defaultFileExists():
+    """
+    Check if the default.txt file exists in working directory
+
+    return True if file exists
+    return False if file does not exist
+    """
+
+    try:  # Check for existing file by trying to read the file
+        with open("default.txt", "r") as file:
+            return True  # default.txt exists
+
+    except IOError:  # default.txt does not exist
+        return False
 
 
 def main():
@@ -288,32 +477,30 @@ def main():
     Main, calls all methods
     """
 
-    if hasLogin() == False:  # user hasn't filled out constants at top of file
+    try:
 
-        print(
-              "\nError: Variables require changing...\n\n"
-              "\n################################################################\n\n"
-              "Edit this python script file and edit the following variables:\n\n" # temporary
-              "USERNAME - this is the username used to ssh into the virtual machine \n\n"
+        runAdmin()  # prompt user to run as admin if needed for powershell commands
 
-              "PASSWORD - this is the password used to ssh into the virtual machine\n\n"
+        while True:
 
-              "ADAPTER - open cmd, enter \'ipconfig\' and enter the name of the Virtual Adapter\n"
-              "after the \"Ethernet adapter\" part. E.g. \"vEthernet (Default Switch)\"\n\n"
+            # First time setup, check if settings file exists
+            if defaultFileExists() == False:  # default.txt file doesn't exist
 
-              "VIRTUAL_MACHINE_IP - this is the IP of the virtual machine used to ssh into, open the\n"
-              "virtual machine, open terminal, type \"ip a\" into the terminal, and enter the ipv4 of\n"
-              "the virtual local machine ip under eth0\n"
-              "\n################################################################\n")
+                print("default.txt not found, performing first time setup...")
 
-        print("After you have edited these variables, restart the script and try again...")
-        print("Exiting...\n")
+                confirmVM()  # confirm with user which vm to connect to by default
 
-    else:
+            else:  # vm info file exists
+                print("Found default VM in default.txt...")
 
-        runAdmin()  # run the script with admin rights
+                break
 
-        chooseDevice()  # user chooses device to connect/disconnect
+        if hasLogin() == True:  # user has filled out ssh_credentials.py
+
+            chooseDevice()  # user chooses device to connect/disconnect
+
+    except KeyboardInterrupt:  # user presses ^C
+        print("\nExiting...")
 
 
 if __name__ == "__main__":
