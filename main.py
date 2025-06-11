@@ -58,12 +58,11 @@ def getHostIP(virtualMachineAdapter):
     return hostip
 
 
-def connect(device):
+def connect(device, virtualMachine):
     """
     Connect the USB device with usbipd-win on host and usbip on VM
     """
 
-    virtualMachine = getDefaultVM()  # get default vm with all info
     virtualMachineName = virtualMachine[0]  # get name
     virtualMachineAdapter = virtualMachine[1]  # get adapter
     virtualMachineIP = virtualMachine[2]  # get ip
@@ -106,7 +105,7 @@ def connect(device):
 
 def displayDevice(index):
     """
-    Display device to user in a readable format 
+    Display device to user in a readable format
     with BUSID, VID:PID, NAME AND STATE
     """
 
@@ -114,7 +113,7 @@ def displayDevice(index):
     print(f"\n{raw[1]}\n{raw[index+2]}\n")
 
 
-def manageDevice(index):
+def manageDevice(index, virtualMachine):
     """
     Let user interactively Connect/Disconnect Device from usbipd
     """
@@ -133,7 +132,7 @@ def manageDevice(index):
             if inp.lower() == "c" or inp.lower() == "connect":  # User wants to connect
                 clear()
                 print("Connecting...")
-                connect(device)
+                connect(device, virtualMachine)
             elif inp.lower() == "b" or inp.lower() == "back":  # User wants to go back to the dev menu
                 clear()
                 break
@@ -155,7 +154,7 @@ def manageDevice(index):
             elif inp.lower() == "r" or inp.lower() == "reconnect":  # user wants to reconnect
                 clear()
                 disconnect(device)
-                connect(device)
+                connect(device, virtualMachine)
             else:  # user entered invalid input
                 clear()
                 print("Invalid input")
@@ -173,6 +172,7 @@ def chooseDevice():
     Let user connect/disconnect devices after displaying a list
     devices to choose from
     """
+    virtualMachine = getDefaultVM()  # get default vm with all info
 
     while True:
 
@@ -189,7 +189,7 @@ def chooseDevice():
 
             if 1 <= inp <= len(devices):  # int in range
                 clear()
-                manageDevice(inp-1)  # disconnect/connect device
+                manageDevice(inp-1, virtualMachine)  # disconnect/connect device
             else:  # int out of range
                 clear()
                 print(f"\nEnter a valid index between 1 and {len(devices)}...\n")
