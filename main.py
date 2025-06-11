@@ -58,9 +58,10 @@ def getHostIP(virtualMachineAdapter):
     return hostip
 
 
-def connect(device, virtualMachine):
+def connect(device, virtualMachine, isBinded):
     """
     Connect the USB device with usbipd-win on host and usbip on VM
+
     """
 
     virtualMachineName = virtualMachine[0]  # get name
@@ -79,9 +80,10 @@ def connect(device, virtualMachine):
         hostIP = getHostIP(virtualMachineAdapter)  # host IP
         busID = device[0]
 
-        print("Binding Device...")
-        os.system(f'powershell.exe usbipd bind -b {device[0]}')  # Bind device
-        sleep(0.5)
+        if isBinded == False:  # device is not shared/binded
+            print("Binding Device...")
+            os.system(f'powershell.exe usbipd bind -b {device[0]}')  # Bind device
+            sleep(0.5)
 
         # SSH into VM
         print("Connecting to Virtual Machine via SSH...")
@@ -98,8 +100,7 @@ def connect(device, virtualMachine):
         stdin, stdout, stderr = ssh.exec_command(f"echo 1234 | sudo -S usbip attach --remote={hostIP} --busid={busID}")
 
         # clear()
-        print("Success.")
-        print(f"Device: {device[2]} Attached!")
+        print(f"Device: {device[2]} Attached.")
         sleep(2)
 
 
@@ -132,7 +133,11 @@ def manageDevice(index, virtualMachine):
             if inp.lower() == "c" or inp.lower() == "connect":  # User wants to connect
                 clear()
                 print("Connecting...")
-                connect(device, virtualMachine)
+                if device[3] == "Not shared": # is not binded
+                    connect(device, virtualMachine, False)  # bind and connect the device 
+                else:  # is already binded
+                    connect(device, virtualMachine, True)  # connect the device without binding
+
             elif inp.lower() == "b" or inp.lower() == "back":  # User wants to go back to the dev menu
                 clear()
                 break
@@ -154,7 +159,7 @@ def manageDevice(index, virtualMachine):
             elif inp.lower() == "r" or inp.lower() == "reconnect":  # user wants to reconnect
                 clear()
                 disconnect(device)
-                connect(device, virtualMachine)
+                connect(device, virtualMachine, False)  # connect and bind the device
             else:  # user entered invalid input
                 clear()
                 print("Invalid input")
