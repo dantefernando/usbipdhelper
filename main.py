@@ -119,11 +119,17 @@ def manageDevice(index, virtualMachine):
     Let user interactively Connect/Disconnect Device from usbipd
     """
 
+    vmName = virtualMachine[0]  # get name
+    vmAdapter = virtualMachine[1]  # get adapter
+    vmIP = virtualMachine[2]  # get ip
+
     while True:
 
         device = getDevices()[index]  # return devices data as 2D array 
 
         displayDevice(index)
+
+        print(f"VM: \"{vmName}\" @ {vmIP} via vEthernet ({vmAdapter})\n")
 
         # send a status to stdout
         if device[3] == "Not shared" or device[3] == "Shared":  # device is disconnected to VM
@@ -178,6 +184,9 @@ def chooseDevice():
     devices to choose from
     """
     virtualMachine = getDefaultVM()  # get default vm with all info
+    vmName = virtualMachine[0]  # get name
+    vmAdapter = virtualMachine[1]  # get adapter
+    vmIP = virtualMachine[2]  # get ip
 
     while True:
 
@@ -185,6 +194,7 @@ def chooseDevice():
 
         displayDevices()  # send formatted devices to stdout for user to choose from
 
+        print(f"VM: \"{vmName}\" @ {vmIP} via vEthernet ({vmAdapter})\n")
         print("Select a device using the index under \"INDEX\"")
 
         print("Press CTRL-C at any time throughout the program to exit.")
